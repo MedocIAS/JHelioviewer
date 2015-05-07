@@ -14,6 +14,11 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.text.NumberFormat;
 
+//Added Pablo 29-04-2015
+import java.util.List;
+import java.util.Arrays;
+import javax.swing.JComboBox;
+
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumn;
@@ -76,7 +81,12 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 			new AspectRatio(1, 1), new AspectRatio(4, 3),
 			new AspectRatio(16, 9), new AspectRatio(16, 10),
 			new AspectRatio(0, 0) };
-
+	
+//Add Pablo 29-04-2015 
+	
+	private String defaultServer=Settings.getProperty("default.server");
+//	private String defaultServer="ias";
+	
 	/**
 	 * The private constructor that sets the fields and the dialog.
 	 */
@@ -136,8 +146,8 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 							false);
 					return;
 				}
-
-				saveSettings();
+//				Message.warn("Server", "Server saved is :"+defaultServer);
+				saveSettings(defaultServer);
 				ImageViewerGui.getSingletonInstance().updateComponents();
 				dispose();
 			}
@@ -218,7 +228,7 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 	 */
 	public void showDialog()
 	{
-		loadSettings();
+		loadSettings(defaultServer);
 
 		pack();
 		setSize(getPreferredSize());
@@ -234,7 +244,7 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 	 * Reads the informations from {@link org.helioviewer.jhv.Settings} and sets
 	 * all gui elements according to them.
 	 */
-	private void loadSettings() {
+	private void loadSettings(String server) {
 
 		// In principle the settings have been previously loaded
 		// settings.load();
@@ -254,7 +264,8 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 			dateFormatField.setText(fmt);
 
 		// Default values
-		defaultsPanel.loadSettings();
+		
+		defaultsPanel.loadSettings(server);
 		movieExportPanel.loadSettings();
 		screenshotExportPanel.loadSettings();
 	}
@@ -264,7 +275,7 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 	 * 
 	 * Writes the informations to {@link org.helioviewer.jhv.Settings}.
 	 */
-	private void saveSettings() {
+	private void saveSettings(String server) {
 
 		// Start up
 		Settings.setProperty("startup.loadmovie",
@@ -274,7 +285,7 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 		Settings.setProperty("default.date.format", dateFormatField.getText());
 		Settings.setProperty("default.display.highDPI", highDPISupport.isSelected() + "");
 		// Default values
-		defaultsPanel.saveSettings();
+		defaultsPanel.saveSettings(server);
 		movieExportPanel.saveSettings();
 		screenshotExportPanel.saveSettings();
 
@@ -343,9 +354,38 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 	 */
 	private JPanel createDefaultSaveDirPanel() {
 
-		JPanel panel = new JPanel(new BorderLayout());
+//		JPanel panel = new JPanel(new BorderLayout());
+		JPanel panel = new JPanel();
 		panel.setBorder(BorderFactory.createTitledBorder(" Defaults "));
+		String[] serverNames = {"IAS","GSFC"};
+		List<String> serverNameslist = Arrays.asList("IAS","GSFC");
+		JComboBox serverCombo = new JComboBox(serverNames);
+		String server= Settings.getProperty("default.server");
+		if (server != null) {
+			serverCombo.setSelectedIndex(serverNameslist.indexOf(server.toUpperCase()));
+		}
+		else {
+			Message.warn("default.server", "Default server not found\n Please choose one and click on Accept .");
+			serverCombo.setSelectedIndex(serverNameslist.indexOf("IAS"));
+		}
+			
+		serverCombo.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				JComboBox source = (JComboBox) e.getSource();
+				String servername=(String)source.getSelectedItem();
+				defaultsPanel.loadSettings(servername.toLowerCase());//loadSettings(servername.toLowerCase());
 
+				//maybe to be moved qd on accepte
+				defaultServer=servername.toLowerCase();
+			}
+		});
+	
+		JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEADING));
+		row1.add(new JLabel("Server :  "));
+		row1.add(serverCombo);
+		panel.add(row1);
+		
+		
 		defaultsPanel = new DefaultsSelectionPanel();
 		defaultsPanel.setPreferredSize(new Dimension(450, 100));
 		defaultsPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
@@ -806,19 +846,33 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 
 			super(new BorderLayout());
 			setPreferredSize(new Dimension(150, 180));
-
+			String server=Settings.getProperty("default.server");
+			if (server ==null){
+				server="ias";
+			}
 			tableData = new Object[][] {
 					{ "Default local path",
 							Settings.getProperty("default.local.path") },
 					{ "Default remote path",
-							Settings.getProperty("default.remote.path") } };
+								Settings.getProperty("default.remote.path"+"."+server) },
+						{ "Default httpRemote path",
+								Settings.getProperty("default.httpRemote.path"+"."+server) },
+						{ "Api event path", Settings.getProperty("API.event.path"+"."+server) },
+						{ "Api dataSources path",
+								Settings.getProperty("API.dataSources.path"+"."+server) },
+						{ "Api jp2series path",
+								Settings.getProperty("API.jp2series.path"+"."+server) },
+						{ "Api jp2images path",
+								Settings.getProperty("API.jp2images.path"+"."+server) }							
+					};
 
 			table = new JTable(new DefaultTableModel(tableData, new String[] {
 					"Description", "Value" }) {
 				private static final long serialVersionUID = 1L;
 
 				public boolean isCellEditable(int row, int column) {
-					return ((row == 2) && (column == 1));
+//					return ((row == 2) && (column == 1));
+					return false;
 				}
 			});
 
@@ -853,15 +907,20 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 			add(scrollPane, BorderLayout.CENTER);
 		}
 
-		public void loadSettings() {
+		public void loadSettings(String server) {
 
 			TableModel model = table.getModel();
 
 			model.setValueAt(Settings.getProperty("default.local.path"), 0, 1);
-			model.setValueAt(Settings.getProperty("default.remote.path"), 1, 1);
+			model.setValueAt(Settings.getProperty("default.remote.path"+"."+server), 1, 1);
+			model.setValueAt(Settings.getProperty("default.httpRemote.path"+"."+server), 2, 1);
+			model.setValueAt(Settings.getProperty("API.event.path"+"."+server), 3, 1);
+			model.setValueAt(Settings.getProperty("API.dataSources.path"+"."+server), 4, 1);
+			model.setValueAt(Settings.getProperty("API.jp2series.path"+"."+server), 5, 1);
+			model.setValueAt(Settings.getProperty("API.jp2images.path"+"."+server), 6, 1);
 		}
 
-		public void saveSettings() {
+		public void saveSettings(String server) {
 
 			TableModel model = table.getModel();
 
@@ -869,13 +928,24 @@ public class PreferencesDialog extends JDialog implements ShowableDialog{
 					.toString());
 			Settings.setProperty("default.remote.path", model.getValueAt(1, 1)
 					.toString());
+			Settings.setProperty("default.httpRemote.path", model.getValueAt(2, 1)
+					.toString());
+			Settings.setProperty("API.event.path", model.getValueAt(3, 1)
+					.toString());
+			Settings.setProperty("API.dataSources.path", model.getValueAt(4, 1)
+					.toString());
+			Settings.setProperty("API.jp2series.path", model.getValueAt(5, 1)
+					.toString());
+			Settings.setProperty("API.jp2images.path", model.getValueAt(6, 1)
+					.toString());
+			Settings.setProperty("default.server", server);
 		}
 
 		public void resetSettings() {
 
 			TableModel model = table.getModel();
 
-			model.setValueAt("jpip://delphi.nascom.nasa.gov:8090", 1, 1);
+			model.setValueAt("jpip://helioviewer.ias.u-psud.fr:8080", 1, 1);
 		}
 	}
 
