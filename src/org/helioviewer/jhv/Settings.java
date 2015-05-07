@@ -48,6 +48,7 @@ public class Settings
             DEFAULT_PROPERTIES.setProperty("default.local.path",Directories.REMOTEFILES.getPath());
             
             defaultPropStream.close();
+            System.out.println(">> Settings.load() > Load default : " + Directories.REMOTEFILES.getPath().toString());
             System.out.println(">> Settings.load() > Load default system settings: " + DEFAULT_PROPERTIES.toString());
         } catch (Exception ex) {
             System.err.println(">> Settings.load(boolean) > Could not load settings");
